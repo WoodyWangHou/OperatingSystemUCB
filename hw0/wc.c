@@ -4,9 +4,17 @@
 
 #include <stdio.h>
 
+// struct for word counting
+typedef struct wcresult {
+    int chars;
+    int words;
+    int lines;
+} wcresult_t;
+
 // helper function signature
 FILE* openReadFile(const char *fileName);
-void closeFile(FILE* fp);
+void closeFile(FILE *fp);
+void wordCount(FILE *fp, wcresult_t *res);
 
 // constant
 const unsigned int MAX_STR = 256;
@@ -16,8 +24,7 @@ int main(int argc, char *argv[]) {
         printf("Number of arguments are not correct");
     }
 
-    char curChar;
-    unsigned int chars = 0, words = 0, lines = 0;
+    wcresult_t result = {0,0,0};
 
     FILE* fp = NULL;
     char* fileName = NULL;
@@ -28,29 +35,39 @@ int main(int argc, char *argv[]) {
         fileName = argv[1];
         fp = openReadFile(fileName);
     }
-
-    // open file for reading
-    if(fp) {
-        do{
-            curChar = fgetc(fp);
-            if(!feof(fp)){
-                // printf("current char: %c", curChar);
-                if(curChar == '\n') {
-                    ++words;
-                    ++lines;
-                }
-
-                if(curChar == ' ') {
-                    ++words;
-                }
-                ++chars;
-            }
-        }while(!feof(fp));
-        printf("%d %d %d %s\n",lines, words, chars, fileName);
-    }
-
+    wordCount(fp, &result);
+    printf("%d %d %d %s\n",result.lines, result.words, result.chars, fileName);
     closeFile(fp);
     return 0;
+}
+
+void wordCount(FILE *fp, wcresult_t *res) {
+    char *wordStart = NULL;
+    // open file for reading
+    if(fp && res) {
+        do{
+            char curChar = fgetc(fp);
+            if(!feof(fp)){
+                if(curChar == '\n') {
+                    if(wordStart) {
+                        ++(res->words);
+                    }
+                    wordStart = NULL;
+                    ++(res->lines);
+                } else if(curChar == ' ') {
+                    if(wordStart) {
+                        ++(res->words);
+                    }
+                    wordStart = NULL;
+                } else {
+                    if(!wordStart) wordStart = &curChar;
+                }
+                ++(res->chars);
+            }
+        }while(!feof(fp));
+
+        if(wordStart) ++(res->words);
+    }
 }
 
 FILE* openReadFile(const char *fileName) {
