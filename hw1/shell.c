@@ -27,10 +27,15 @@ struct termios shell_tmodes;
 /* Process group id for the shell */
 pid_t shell_pgid;
 
+/* PATH resolution */
+const char* resolvePath(const char *path); 
+
+/* Command Signature */
 int cmd_exit(struct tokens *tokens);
 int cmd_help(struct tokens *tokens);
 int cmd_cd(struct tokens *tokens);
 int cmd_pwd(struct tokens *tokens);
+int cmd_exec(struct tokens *tokens);
 
 /* Built-in command functions take token array (see parse.h) and return int */
 typedef int cmd_fun_t(struct tokens *tokens);
@@ -43,26 +48,67 @@ typedef struct fun_desc {
 } fun_desc_t;
 
 
-// TODO: add functions here
+// add functions here
 fun_desc_t cmd_table[] = {
   {cmd_help, "?", "show this help menu"},
   {cmd_exit, "exit", "exit the command shell"},
   {cmd_cd, "cd", "change directory"},
-  {cmd_pwd, "pwd", "print current directory"},
+  {cmd_pwd, "pwd", "print current directory: cd path"},
 };
+
+/* TODO: Resolve Path implementation*/
+const char* resolvePath(const char *path) {
+
+}
+
+/* Execute a program */
+int cmd_exec(struct tokens *tokens) {
+  int len = tokens_get_length(tokens);
+  if(len > 0) {
+    // prepare program name and args
+    char *progName = tokens_get_token(tokens, 0);
+    char *args[len + 1];
+
+    for(int i = 0; i < len; i++) {
+      args[i] = tokens_get_token(tokens, i);
+    }
+    args[len] = NULL;
+
+    // fork a child for executing program
+    pid_t prog = fork();
+    if(prog == 0) {
+        // child
+        if(execv(progName, args) < 0) {
+          printf("Error to Execute: %s\n", strerror(errno));
+        }
+        exit(0);
+    } else {
+        // parent
+        if(prog < 0) {
+          printf("failed to execute: %s\n", strerror(errno));
+          return -1;
+        }
+
+        int wstatus;
+        waitpid(prog, &wstatus, 0);
+    }
+  } // otherwise does nothing
+
+  return 0;
+}
 
 /* Change directory to the given path */
 int cmd_cd(struct tokens *tokens) {
   if(tokens_get_length(tokens) != 2) {
     printf("Please provide a directory to cd\n");
-    return EINVAL;
+    return -1;
   }
 
   const char *path = tokens_get_token(tokens, 1);
   int err = chdir(path);
-  if(err) {
+  if(err < 0) {
     // failed to change directory
-    printf("failed to cd: %s\n", strerror(err));
+    printf("failed to cd: %s\n", strerror(errno));
   }
   return 0;
 }
@@ -142,7 +188,9 @@ int main(unused int argc, unused char *argv[]) {
       cmd_table[fundex].fun(tokens);
     } else {
       /* REPLACE this to run commands as programs. */
-      fprintf(stdout, "This shell doesn't know how to run programs.\n");
+      if(cmd_exec(tokens) < 0){
+        fprintf(stdout, "This shell doesn't know how to run programs.\n");
+      }
     }
 
     if (shell_is_interactive)
